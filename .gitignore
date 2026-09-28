@@ -1,0 +1,12 @@
+node_modules/
+.next/
+.env
+.env.local
+*.tfvars
+.terraform/
+*.tfstate*
+tfplan*
+*.bak-*
+.DS_Store
+next-env.d.ts
+tsconfig.tsbuildinfo
