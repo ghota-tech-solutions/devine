@@ -1,4 +1,4 @@
-# Mac ou Nuage ?
+# Local ou Cloud ?
 
 **[devine.ghotatechsolutions.com](https://devine.ghotatechsolutions.com)**
 

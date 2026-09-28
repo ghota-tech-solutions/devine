@@ -286,8 +286,8 @@ export default function Home() {
   return (
     <main>
       <header className="hero">
-        <p className="kicker">Le jeu du local contre le cloud</p>
-        <h1>Mac ou Nuage&nbsp;?</h1>
+        <p className="kicker">Deux IA, une question</p>
+        <h1>Local ou Cloud&nbsp;?</h1>
         <p className="tagline">
           Pose une question&nbsp;: <strong>deux IA répondent en même temps</strong>. L’une tourne sur un
           ordinateur portable posé à Lyon, l’autre dans les serveurs de Google. <strong>À toi de deviner
