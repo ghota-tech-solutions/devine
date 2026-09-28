@@ -292,6 +292,12 @@ button.pick { display: block; width: 100%; margin-top: 1rem; padding: .8rem 1rem
 .center { text-align: center; }
 .asked { font-style: italic; color: var(--dim); margin: 1.2rem 0 0; }
 
+/* ---------- partage ---------- */
+.share { margin: 0 0 1.2rem; }
+.share .section-title { text-align: center; }
+.share .contact-links { margin-top: .4rem; }
+button.contact-btn { cursor: pointer; }
+
 /* ---------- contact ---------- */
 .contact {
   margin-top: 2.5rem; text-align: center; padding: 1.6rem 1.3rem; border-radius: 20px;

@@ -15,6 +15,9 @@ export class RateLimitedError extends DomainError {
 export class QuotaExhaustedError extends DomainError {
   constructor() { super('Contingent journalier de manches atteint.'); }
 }
+export class AlreadyPlayingError extends DomainError {
+  constructor() { super('Tu as déjà une question en cours : attends que les deux IA aient fini avant d’en poser une autre.'); }
+}
 export class VoteNotAllowedError extends DomainError {
   constructor(state: string) { super(`Vote impossible tant que la manche est « ${state} ».`); }
 }

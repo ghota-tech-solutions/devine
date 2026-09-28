@@ -122,6 +122,51 @@ async function getJson<T>(url: string): Promise<T | null> {
   }
 }
 
+const SITE_URL = 'https://devine.ghotatechsolutions.com';
+
+/** Texte de partage : jamais la réponse elle-même, le lecteur doit pouvoir jouer. */
+function shareText(vote: { choice: Side | 'tie'; correct: boolean } | null) {
+  if (vote && vote.choice !== 'tie' && vote.correct) {
+    return `J’ai démasqué l’IA locale 🖥️ : ${MAC_MODEL} sur un Mac contre ${CLOUD_MODEL} dans le cloud. Et toi, tu la reconnais ?`;
+  }
+  if (vote && vote.choice !== 'tie') {
+    return 'Je me suis fait avoir 😅 Impossible de distinguer l’IA qui tourne sur un Mac de Gemini dans le cloud. Tu fais mieux ?';
+  }
+  return 'Deux IA répondent à la même question : l’une tourne sur un Mac, l’autre dans le cloud. Tu devines laquelle ?';
+}
+
+function ShareBar({ vote }: { vote: { choice: Side | 'tie'; correct: boolean } | null }) {
+  const [copied, setCopied] = useState(false);
+  const text = shareText(vote);
+  const canNative = typeof navigator !== 'undefined' && typeof navigator.share === 'function';
+  const copy = async () => {
+    try {
+      await navigator.clipboard.writeText(`${text} ${SITE_URL}`);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    } catch { /* presse-papiers refusé */ }
+  };
+  return (
+    <div className="share">
+      <div className="section-title">Défie tes amis</div>
+      <div className="contact-links">
+        {canNative && (
+          <button className="contact-btn primary" onClick={() => navigator.share({ title: 'Local ou Cloud ?', text, url: SITE_URL }).catch(() => {})}>
+            Partager
+          </button>
+        )}
+        <a className="contact-btn" target="_blank" rel="noopener noreferrer"
+          href={`https://x.com/intent/post?text=${encodeURIComponent(text)}&url=${encodeURIComponent(SITE_URL)}`}>X</a>
+        <a className="contact-btn" target="_blank" rel="noopener noreferrer"
+          href={`https://www.linkedin.com/sharing/share-offsite/?url=${encodeURIComponent(SITE_URL)}`}>LinkedIn</a>
+        <a className="contact-btn" target="_blank" rel="noopener noreferrer"
+          href={`https://wa.me/?text=${encodeURIComponent(`${text} ${SITE_URL}`)}`}>WhatsApp</a>
+        <button className="contact-btn" onClick={copy}>{copied ? 'Lien copié ✓' : 'Copier le lien'}</button>
+      </div>
+    </div>
+  );
+}
+
 const fmtRatio = (a: number, b: number) => (a / b).toLocaleString('fr-FR', { maximumFractionDigits: 1 });
 
 export default function Home() {
@@ -492,6 +537,7 @@ export default function Home() {
                 le Mac écrit son premier mot ; chaque délai est compté depuis le départ de sa propre IA, trajet
                 réseau compris. Le débit compte les tokens entre le premier et le dernier mot.
               </p>
+              <ShareBar vote={myVote} />
               <button onClick={reset}>Rejouer ↻</button>
             </section>
           )}

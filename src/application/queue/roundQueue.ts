@@ -12,19 +12,27 @@ export interface QueueStatus {
   waiting: number;
 }
 
-type Job = { id: string; run: () => Promise<void> };
+type Job = { id: string; run: () => Promise<void>; owner?: string };
 
 export class RoundQueue {
   private waitingJobs: Job[] = [];
   private runningIds = new Set<string>();
+  /** Visiteurs (clé IP) qui ont déjà une manche en file ou en cours. */
+  private owners = new Map<string, string>();
 
   constructor(private readonly concurrency = 1) {}
 
   /** Ajoute une manche ; renvoie sa position (0 = démarre tout de suite). */
-  enqueue(id: string, run: () => Promise<void>): number {
-    this.waitingJobs.push({ id, run });
+  enqueue(id: string, run: () => Promise<void>, owner?: string): number {
+    if (owner) this.owners.set(owner, id);
+    this.waitingJobs.push({ id, run, owner });
     this.pump();
     return this.status(id).position ?? 0;
+  }
+
+  /** Vrai si ce visiteur a déjà une manche en file ou en cours. */
+  hasActive(owner: string): boolean {
+    return this.owners.has(owner);
   }
 
   status(id?: string): QueueStatus {
@@ -45,6 +53,7 @@ export class RoundQueue {
         .catch(() => { /* une manche en échec ne bloque jamais la file */ })
         .finally(() => {
           this.runningIds.delete(job.id);
+          if (job.owner && this.owners.get(job.owner) === job.id) this.owners.delete(job.owner);
           this.pump();
         });
     }

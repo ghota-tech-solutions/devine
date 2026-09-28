@@ -2,7 +2,7 @@ import { describe, expect, test } from 'bun:test';
 import { makeStartRoundUseCase } from '@application/usecases/playRound';
 import { makeCastVoteUseCase, makeGetLeaderboardUseCase } from '@application/usecases/voteAndLeaderboard';
 import { fakeStreamGateway, fixedClock, MemoryRoundRepository, MemoryStatsRepository, SlidingWindowRateLimiter } from '@infrastructure/http/inMemory';
-import { MAX_PROMPT_CHARS, PromptEmptyError, PromptTooLongError, QuotaExhaustedError, RateLimitedError } from '@domain/entities/round';
+import { AlreadyPlayingError, MAX_PROMPT_CHARS, PromptEmptyError, PromptTooLongError, QuotaExhaustedError, RateLimitedError } from '@domain/entities/round';
 import type { TextStreamGateway } from '@application/ports/ports';
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
@@ -49,6 +49,18 @@ describe('PlayRound', () => {
     const round = await rounds.get(result.roundId);
     expect(round?.prompt).toBe('Raconte une blague.');
     expect(round?.machine.state).toBe('live');
+    held.release();
+  });
+
+  test('un visiteur ne peut pas empiler une deuxième question avant le verdict de la première', async () => {
+    // GIVEN une manche en cours pour l'IP 1.1.1.1
+    const held = heldGateway();
+    const { app } = makeWorld({ local: held.gateway });
+    await app({ prompt: 'première', ip: '1.1.1.1' });
+    // WHEN la même IP en repose une
+    // THEN refus ; une autre IP, elle, peut jouer
+    await expect(app({ prompt: 'deuxième', ip: '1.1.1.1' })).rejects.toBeInstanceOf(AlreadyPlayingError);
+    await expect(app({ prompt: 'autre visiteur', ip: '2.2.2.2' })).resolves.toBeDefined();
     held.release();
   });
 
@@ -137,7 +149,9 @@ describe('PlayRound', () => {
     const { app } = makeWorld();
     // WHEN une troisième manche depuis la même IP
     await app({ prompt: 'une', ip: '9.9.9.9' });
+    await sleep(40); // la première manche se termine (une seule à la fois par visiteur)
     await app({ prompt: 'deux', ip: '9.9.9.9' });
+    await sleep(40);
     // THEN refus 429
     await expect(app({ prompt: 'trois', ip: '9.9.9.9' })).rejects.toBeInstanceOf(RateLimitedError);
   });

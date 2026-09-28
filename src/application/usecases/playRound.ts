@@ -1,4 +1,4 @@
-import { normalizePrompt, rollMacSide, QuotaExhaustedError } from '@domain/entities/round';
+import { AlreadyPlayingError, normalizePrompt, rollMacSide, QuotaExhaustedError } from '@domain/entities/round';
 import { initialRoundState, transition } from '@domain/states/roundStateMachine';
 import type { Round } from '@domain/entities/round';
 import type { Clock, RateLimiter, RoundRepository, StatsRepository, TextStreamGateway } from '@application/ports/ports';
@@ -46,6 +46,9 @@ export function makeStartRoundUseCase(deps: StartRoundDeps) {
   return async function startRound(input: { prompt: string; ip: string }): Promise<StartRoundResult> {
     const prompt = normalizePrompt(input.prompt);
 
+    // Une seule question à la fois par visiteur : sans ça, on remplit la file
+    // en cliquant, et les autres attendent derrière.
+    if (queue.hasActive(input.ip)) throw new AlreadyPlayingError();
     deps.rateLimiter.consume(input.ip, deps.clock.nowMs());
 
     const day = deps.clock.day();
@@ -64,7 +67,7 @@ export function makeStartRoundUseCase(deps: StartRoundDeps) {
       machine: initialRoundState(),
     });
 
-    const queuePosition = queue.enqueue(id, () => launch(id, prompt));
+    const queuePosition = queue.enqueue(id, () => launch(id, prompt), input.ip);
     return { roundId: id, queuePosition };
   };
 
