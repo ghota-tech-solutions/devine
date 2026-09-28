@@ -41,6 +41,7 @@ const MAC_MODEL = 'Qwen 3.8 Flash Next';
 const CLOUD_MODEL = 'Gemini 3.8 Flash';
 const HIST = 90; // ~3 min à 2 s d'intervalle
 const EXAMPLES = [
+  'Code une fonction FizzBuzz en TypeScript avec les tests.',
   'Explique la photosynthèse à un enfant de 8 ans.',
   'Écris un haïku sur un lundi matin.',
   'Trois idées de dîner rapide avec des pâtes.',
