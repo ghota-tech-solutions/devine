@@ -71,6 +71,29 @@ describe('PlayRound', () => {
     expect((await rounds.get(second.roundId))?.machine.state).not.toBe('queued');
   });
 
+  test('le nuage attend le premier mot du Mac avant de démarrer', async () => {
+    // GIVEN un Mac qui réfléchit encore (aucun mot écrit)
+    let speak!: () => void;
+    const firstWord = new Promise<void>((r) => { speak = r; });
+    const slowMac: TextStreamGateway = {
+      async stream(_p, onChunk) {
+        await firstWord;
+        onChunk('Mac local.');
+        return { tokPerSec: 90, ttftMs: 2000, fullText: 'Mac local.' };
+      },
+    };
+    const { rounds, app } = makeWorld({ local: slowMac });
+    const { roundId } = await app({ prompt: 'Bonjour', ip: '1.2.3.4' });
+    await sleep(30);
+    // THEN le nuage n'a encore rien écrit
+    expect((await rounds.get(roundId))?.cloudText).toBe('');
+    // WHEN le Mac écrit son premier mot
+    speak();
+    await sleep(50);
+    // THEN le nuage est parti à son tour
+    expect((await rounds.get(roundId))?.cloudText).toContain('nuage');
+  });
+
   test('sans oMLX, la piste Mac échoue et le nuage répond seul', async () => {
     // GIVEN un Mac hors ligne
     const offline: TextStreamGateway = { async stream() { throw new Error('Mac hors ligne'); } };

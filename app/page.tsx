@@ -6,11 +6,10 @@ import DOMPurify from 'dompurify';
 
 type Side = 'left' | 'right';
 /** Vue publique d'une piste : rangée par position, jamais par « Mac » ou « nuage ». */
-interface Lane { text: string; done: boolean; tokPerSec: number; ttftMs?: number; failed: boolean; error?: string }
+interface Lane { text: string; done: boolean; tokPerSec?: number; ttftMs?: number; failed: boolean; error?: string; reasoning?: string }
 /** `macSide` n'arrive qu'avec la révélation. */
 interface PublicRound { state: string; lanes: Record<Side, Lane>; macSide?: Side }
 const SIDES: Side[] = ['left', 'right'];
-const ZERO: Record<Side, number> = { left: 0, right: 0 };
 interface Leaderboard {
   rounds: number;
   correctVotes: number;
@@ -120,10 +119,6 @@ export default function Home() {
   const [prompt, setPrompt] = useState('');
   const [roundId, setRoundId] = useState<string | null>(null);
   const [round, setRound] = useState<PublicRound | null>(null);
-  // Vitesse estimée en direct, calculée À L'IDENTIQUE pour les deux pistes :
-  // une piste qui s'anime seule trahirait le Mac.
-  const [liveTps, setLiveTps] = useState<Record<Side, number>>(ZERO);
-  const firstTextAt = useRef<Record<Side, number>>({ ...ZERO });
   const [macOnline, setMacOnline] = useState<boolean | null>(null);
   const [queue, setQueue] = useState<QueueInfo | null>(null);
   const [globalQueue, setGlobalQueue] = useState<{ running: number; waiting: number } | null>(null);
@@ -181,20 +176,6 @@ export default function Home() {
       const d2 = d as PublicRound;
       const state = d2.state;
       setRound(d2);
-      const now = Date.now();
-      const est: Record<Side, number> = { ...ZERO };
-      for (const side of SIDES) {
-        const l = d2.lanes[side];
-        if (!firstTextAt.current[side] && l.text) firstTextAt.current[side] = now;
-        // Estimation live (~4 caractères par token) remplacée par la mesure
-        // serveur dès que la piste a fini.
-        est[side] = l.done
-          ? l.tokPerSec
-          : l.text && firstTextAt.current[side]
-            ? Math.max(1, Math.round(l.text.length / 4 / Math.max((now - firstTextAt.current[side]) / 1000, 0.3)))
-            : 0;
-      }
-      setLiveTps(est);
       if (state !== 'queued') setQueue(null);
       if (['revealed', 'expired', 'failed'].includes(state)) { es.close(); void refresh(); }
     });
@@ -209,8 +190,6 @@ export default function Home() {
     setRound(null);
     setRoundId(null);
     setMyVote(null);
-    setLiveTps(ZERO);
-    firstTextAt.current = { ...ZERO };
     setAskedPrompt(p);
     try {
       const res = await fetch('/api/rounds', {
@@ -293,7 +272,6 @@ export default function Home() {
       name: pos === 'left' ? 'IA A' : 'IA B',
       lane: l,
       live: state === 'live' && !l.done && !l.failed,
-      tps: liveTps[pos],
     };
   });
 
@@ -412,13 +390,6 @@ export default function Home() {
         <>
           <p className="asked center">« {askedPrompt || 'ta question'} »</p>
 
-          {phase === 'race' && (
-            <section className="live-speed" aria-label="Vitesse en direct">
-              <div className="section-title">Vitesse d’écriture en direct <small>(tokens par seconde)</small></div>
-              <Bars unit="tok/s" rows={lanes.map((l) => ({ label: l.name, value: l.tps, tone: 'neutral' as const }))} />
-            </section>
-          )}
-
           {phase === 'vote' && (
             <div className="vote-banner">
               <b>À toi&nbsp;!</b> Laquelle de ces deux réponses vient du Mac&nbsp;?
@@ -426,7 +397,7 @@ export default function Home() {
           )}
 
           <section className="race">
-            {lanes.map(({ pos, isMac, name, lane, live, tps }) => (
+            {lanes.map(({ pos, isMac, name, lane, live }) => (
               <div
                 key={pos}
                 className={`lane ${revealed ? (isMac ? 'is-mac' : 'is-cloud') : ''} ${live ? 'streaming' : ''} ${lane.done ? 'done' : ''}`}
@@ -438,16 +409,22 @@ export default function Home() {
                     {name}
                     {revealed && <em className="who">{isMac ? `🖥️ ${MAC_MODEL} (Mac)` : `☁️ ${CLOUD_MODEL}`}</em>}
                   </span>
-                  <span>
-                    <span className="tps">{live ? '~' : ''}{tps > 0 ? tps : '—'}<small>{tps > 0 ? ' tok/s' : ''}</small></span>
-                    <span className="ttft">{lane.done ? `1ᵉʳ mot en ${lane.ttftMs ?? '?'} ms` : 'en train d’écrire…'}</span>
-                  </span>
+                  {/* Les chiffres trahiraient le Mac : seulement après le vote. */}
+                  {revealed ? (
+                    <span>
+                      <span className="tps">{lane.tokPerSec ? lane.tokPerSec : '—'}<small>{lane.tokPerSec ? ' tok/s' : ''}</small></span>
+                      <span className="ttft">1ᵉʳ mot en {lane.ttftMs ?? '?'} ms</span>
+                    </span>
+                  ) : (
+                    <span className="ttft">{lane.done ? 'a fini' : lane.text ? 'écrit…' : 'thinking…'}</span>
+                  )}
                 </div>
                 {lane.text
                   ? <Markdown text={lane.text} />
                   : lane.failed
                     ? <p className="error">⚠️ Cette IA n’a pas répondu{lane.error ? ` (${lane.error})` : ''}</p>
-                    : <span className="dim">Réfléchit…</span>}
+                    // Même indicateur sur les deux pistes tant qu'aucun mot n'est écrit.
+                    : <span className="thinking">💭 thinking<span className="dots" aria-hidden><i>.</i><i>.</i><i>.</i></span></span>}
                 {live && lane.text && <span className="caret" />}
                 {phase === 'vote' && (
                   <button className="pick" onClick={() => vote(pos)}>🖥️ C’est le Mac&nbsp;!</button>
@@ -495,9 +472,16 @@ export default function Home() {
                   ]} />
                 </div>
               </div>
+              {macLane?.reasoning && (
+                <details className="reasoning">
+                  <summary>💭 Voir la réflexion du Mac avant sa réponse</summary>
+                  <p>{macLane.reasoning}</p>
+                </details>
+              )}
               <p className="footnote">
-                Mesures brutes de cette manche, sans retouche. Le débit compte les tokens entre le premier et le
-                dernier mot ; le délai inclut le trajet réseau de chaque côté.
+                Mesures brutes de cette manche, sans retouche. Le Mac part en premier et Gemini démarre quand
+                le Mac écrit son premier mot ; chaque délai est compté depuis le départ de sa propre IA, trajet
+                réseau compris. Le débit compte les tokens entre le premier et le dernier mot.
               </p>
               <button onClick={reset}>Rejouer ↻</button>
             </section>

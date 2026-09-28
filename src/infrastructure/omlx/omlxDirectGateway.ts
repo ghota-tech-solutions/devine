@@ -27,6 +27,9 @@ export function makeOmlxDirectGateway(opts: {
     async stream(prompt, onChunk) {
       const startedAt = Date.now();
       let fullText = '';
+      // Raisonnement du modèle (champ séparé chez oMLX) : gardé pour le
+      // verdict, jamais streamé — il trahirait la piste du Mac.
+      let reasoning = '';
       let firstTokenAt: number | null = null;
       let lastTokenAt: number | null = null;
       let completionTokens = 0;
@@ -74,7 +77,9 @@ export function makeOmlxDirectGateway(opts: {
             const json = JSON.parse(payload);
             const usage = json.usage?.completion_tokens;
             if (typeof usage === 'number' && usage > 0) completionTokens = usage;
-            const piece: string = json.choices?.[0]?.delta?.content ?? '';
+            const delta = json.choices?.[0]?.delta ?? {};
+            reasoning += delta.reasoning_content ?? delta.reasoning ?? '';
+            const piece: string = delta.content ?? '';
             if (piece) {
               const now = Date.now();
               if (firstTokenAt === null) firstTokenAt = now;
@@ -89,7 +94,7 @@ export function makeOmlxDirectGateway(opts: {
       // Fenêtre de décode uniquement (comme le tableau de bord oMLX) :
       // file d'attente et prefill sortent du ratio, ils ressortent en TTFT.
       const t = measureThroughput({ startedAtMs: startedAt, firstTokenAtMs: firstTokenAt, lastTokenAtMs: lastTokenAt, completionTokens, fullText });
-      return { tokPerSec: t.tokPerSec, ttftMs: t.ttftMs ?? undefined, fullText };
+      return { tokPerSec: t.tokPerSec, ttftMs: t.ttftMs ?? undefined, fullText, reasoning: reasoning.trim() || undefined };
     },
 
     async ping() {

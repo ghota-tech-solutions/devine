@@ -224,6 +224,16 @@ button.ghost:hover:not(:disabled) { border-color: rgba(255, 255, 255, 0.25); box
 .md hr { border: 0; border-top: 1px solid var(--line); margin: 1em 0; }
 
 .dim { color: var(--dim); }
+.thinking { color: var(--dim); font-style: italic; }
+.thinking .dots i { font-style: normal; animation: blink 1.2s infinite; }
+.thinking .dots i:nth-child(2) { animation-delay: .2s; }
+.thinking .dots i:nth-child(3) { animation-delay: .4s; }
+details.reasoning {
+  text-align: left; margin: 0 0 1rem; border: 1px solid var(--line); border-radius: 12px;
+  background: rgba(0, 0, 0, 0.25); padding: .6rem .9rem;
+}
+details.reasoning summary { cursor: pointer; font-weight: 600; color: var(--mac); }
+details.reasoning p { white-space: pre-wrap; color: var(--dim); font-size: .85rem; margin: .6rem 0 0; }
 .caret { display: inline-block; width: 8px; height: 1.05em; vertical-align: text-bottom; margin-left: 2px;
   background: currentColor; animation: blink 1s steps(1) infinite; }
 @keyframes blink { 50% { opacity: 0; } }
@@ -265,10 +275,6 @@ button.pick { display: block; width: 100%; margin-top: 1rem; padding: .8rem 1rem
 .bar-row.mac .bar-label { color: var(--mac); }
 .bar-row.cloud .bar-label { color: var(--cloud); }
 
-.live-speed {
-  margin-top: 1rem; background: var(--panel); border: 1px solid var(--line);
-  border-radius: 16px; padding: .9rem 1.1rem;
-}
 
 /* ---------- classement ---------- */
 .board {

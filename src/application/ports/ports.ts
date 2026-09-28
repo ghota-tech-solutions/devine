@@ -4,7 +4,7 @@ import type { Leaderboard, Round } from '@domain/entities/round';
 export interface TextStreamGateway {
   /** Émet des chunks de texte au fur et à mesure ; renvoie le débit mesuré sur la
    *  fenêtre de décode (tokens réels, prefill exclu — celui-ci ressort en ttftMs). */
-  stream(prompt: string, onChunk: (text: string) => void): Promise<{ tokPerSec: number; ttftMs?: number; fullText: string }>;
+  stream(prompt: string, onChunk: (text: string) => void): Promise<{ tokPerSec: number; ttftMs?: number; fullText: string; reasoning?: string }>;
   /** Le modèle répond-il ? (bandeau « Mac hors ligne » de l'accueil). */
   ping?(): Promise<boolean>;
 }

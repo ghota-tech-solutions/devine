@@ -35,6 +35,8 @@ export interface Round {
   // Réponses partielles (textes reçus) — alimentés par les streams.
   localText: string;
   cloudText: string;
+  /** Raisonnement du Mac, montré seulement après la révélation. */
+  localReasoning?: string;
   machine: RoundStateData;
   vote?: { choice: 'left' | 'right' | 'tie'; correct: boolean };
 }

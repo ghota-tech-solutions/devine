@@ -23,14 +23,17 @@ Navigateur ──SSE──▶ Cloud Run (Next.js 16 / Bun)
   pose sa question tout de suite ; elle part à son tour, et sa position
   s'affiche en direct. La file vit en mémoire du processus, d'où
   `max_instance_count = 1` sur Cloud Run.
+- **Départ décalé** : le Mac part en premier (il réfléchit avant d'écrire et
+  passe par la box) ; Gemini démarre quand le Mac écrit son premier mot, pour
+  que les deux réponses commencent ensemble. Au plus tard après 10 s.
 - **Mesures honnêtes** : les deux débits sont mesurés côté serveur, en tokens
   réels, sur la fenêtre de décode (premier → dernier token). Le délai avant le
-  premier token inclut le trajet réseau de chaque côté. Affichés tels quels.
+  premier token est compté depuis le départ de chaque IA, trajet réseau
+  compris. Débit et délai ne sont montrés (et envoyés) qu'après le vote.
 - **Placement tiré au sort** : le Mac est à gauche ou à droite selon la
   manche. Avant le vote, ni l'interface ni l'API ne le révèlent : le navigateur
   reçoit les pistes rangées par position (`src/application/usecases/publicRound.ts`),
-  le côté du Mac n'arrive qu'avec la révélation. Les deux vitesses en direct
-  sont estimées de la même façon.
+  le côté du Mac et les mesures n'arrivent qu'avec la révélation.
 - **Contingent** : `MAX_ROUNDS_PER_DAY`, limite par IP (`PER_IP_PER_WINDOW`
   sur `WINDOW_MS`), budget Terraform à 10 €/mois avec alerte à 50 %.
 - **Secrets** : la clé oMLX passe par Secret Manager, jamais par le navigateur

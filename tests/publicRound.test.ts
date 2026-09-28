@@ -10,6 +10,7 @@ function round(state: Round['machine']['state'], macSide: 'left' | 'right'): Rou
     macSide,
     localText: 'texte du Mac',
     cloudText: 'texte du nuage',
+    localReasoning: 'je réfléchis en secret',
     machine: {
       state,
       local: { done: true, tokPerSec: 90, ttftMs: 300 },
@@ -20,7 +21,7 @@ function round(state: Round['machine']['state'], macSide: 'left' | 'right'): Rou
 }
 
 describe('Vue publique d’une manche', () => {
-  test('avant la révélation, rien ne dit quelle piste est le Mac', () => {
+  test('avant la révélation, rien ne dit quelle piste est le Mac, pas même les mesures', () => {
     // GIVEN une manche en attente de vote, Mac à droite
     const r = round('awaiting_vote', 'right');
     // WHEN on la sérialise pour le navigateur
@@ -29,6 +30,8 @@ describe('Vue publique d’une manche', () => {
     expect(json).not.toContain('macSide');
     expect(json).not.toMatch(/"(local|cloud|localText|cloudText|machine)"/);
     expect(json).not.toContain('Vertex');
+    expect(json).not.toMatch(/tokPerSec|ttftMs/);
+    expect(json).not.toContain('secret');
     // … mais les pistes sont bien rangées par position
     expect(toPublicRound(r).lanes.right.text).toBe('texte du Mac');
     expect(toPublicRound(r).lanes.left.failed).toBe(true);
@@ -39,8 +42,11 @@ describe('Vue publique d’une manche', () => {
     const r = round('revealed', 'left');
     // WHEN on la sérialise
     const pub = toPublicRound(r);
-    // THEN le côté et l'erreur apparaissent
+    // THEN le côté, les mesures et l'erreur apparaissent
     expect(pub.macSide).toBe('left');
+    expect(pub.lanes.left.tokPerSec).toBe(90);
+    expect(pub.lanes.right.ttftMs).toBe(700);
+    expect(pub.lanes.left.reasoning).toBe('je réfléchis en secret');
     expect(pub.lanes.left.text).toBe('texte du Mac');
     expect(pub.lanes.right.error).toBe('Vertex 503');
   });

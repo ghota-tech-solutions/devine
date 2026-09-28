@@ -20,6 +20,8 @@ export interface StartRoundDeps {
   queue?: RoundQueue;
   /** Au-delà, une manche qui n'a pas fini ses deux pistes libère la file. */
   roundTimeoutMs?: number;
+  /** Le nuage part quand le Mac écrit son premier mot ; au plus tard après ce délai. */
+  cloudMaxDelayMs?: number;
 }
 
 export interface StartRoundResult {
@@ -39,6 +41,7 @@ export function makeStartRoundUseCase(deps: StartRoundDeps) {
   const flushMs = deps.flushIntervalMs ?? 150;
   const queue = deps.queue ?? new RoundQueue(1);
   const timeoutMs = deps.roundTimeoutMs ?? 180_000;
+  const cloudMaxDelayMs = deps.cloudMaxDelayMs ?? 10_000;
 
   return async function startRound(input: { prompt: string; ip: string }): Promise<StartRoundResult> {
     const prompt = normalizePrompt(input.prompt);
@@ -71,8 +74,20 @@ export function makeStartRoundUseCase(deps: StartRoundDeps) {
     if (!round) return;
     await deps.rounds.update(id, { machine: transition(round.machine, { type: 'START' }) });
 
-    void runStreamInBackground(id, prompt, deps.cloud, 'cloud');
-    void runStreamInBackground(id, prompt, deps.local, 'local');
+    // Le Mac part d'abord : son premier mot arrive plus tard (réflexion, trajet
+    // jusqu'à la box). Le nuage ne démarre qu'à ce moment-là, pour que les deux
+    // réponses commencent à s'écrire ensemble. Si le Mac échoue ou tarde trop,
+    // le nuage part quand même.
+    let cloudStarted = false;
+    const startCloud = () => {
+      if (cloudStarted) return;
+      cloudStarted = true;
+      clearTimeout(fallback);
+      void runStreamInBackground(id, prompt, deps.cloud, 'cloud');
+    };
+    const fallback = setTimeout(startCloud, cloudMaxDelayMs);
+    (fallback as { unref?: () => void }).unref?.();
+    void runStreamInBackground(id, prompt, deps.local, 'local', startCloud);
     await waitUntilSettled(id);
   }
 
@@ -95,7 +110,14 @@ export function makeStartRoundUseCase(deps: StartRoundDeps) {
     });
   }
 
-  async function runStreamInBackground(id: string, prompt: string, gateway: TextStreamGateway, lane: 'local' | 'cloud') {
+  async function runStreamInBackground(
+    id: string,
+    prompt: string,
+    gateway: TextStreamGateway,
+    lane: 'local' | 'cloud',
+    /** Appelé au premier texte reçu, ou à la fin de la piste si rien n'est venu. */
+    onFirstText?: () => void,
+  ) {
     const textKey = lane === 'local' ? 'localText' : 'cloudText';
     const doneEvent = lane === 'local'
       ? (tps: number, ttftMs?: number) => ({ type: 'LOCAL_DONE' as const, tokPerSec: tps, ttftMs })
@@ -126,7 +148,8 @@ export function makeStartRoundUseCase(deps: StartRoundDeps) {
     };
 
     try {
-      const { tokPerSec, ttftMs, fullText } = await gateway.stream(prompt, (chunk) => {
+      const { tokPerSec, ttftMs, fullText, reasoning } = await gateway.stream(prompt, (chunk) => {
+        if (chunk) onFirstText?.();
         buffered += chunk;
         void flush();
       });
@@ -136,6 +159,7 @@ export function makeStartRoundUseCase(deps: StartRoundDeps) {
         if (!round) return;
         await deps.rounds.update(id, {
           [textKey]: fullText,
+          ...(lane === 'local' && reasoning ? { localReasoning: reasoning } : {}),
           machine: transition(round.machine, doneEvent(tokPerSec, ttftMs)),
         } as Partial<Round>);
         // L'agrégat survit au TTL des manches — fire and forget, une stats
@@ -151,6 +175,8 @@ export function makeStartRoundUseCase(deps: StartRoundDeps) {
           machine: transition(round.machine, { type: 'LANE_FAIL', lane, reason: String(err) }),
         });
       });
+    } finally {
+      onFirstText?.(); // piste finie ou en panne sans texte : ne jamais bloquer l'autre
     }
   }
 }
