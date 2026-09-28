@@ -4,9 +4,13 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { marked } from 'marked';
 import DOMPurify from 'dompurify';
 
-interface Track { done: boolean; tokPerSec: number; ttftMs?: number; error?: string }
-interface Machine { state: string; local: Track; cloud: Track }
 type Side = 'left' | 'right';
+/** Vue publique d'une piste : rangée par position, jamais par « Mac » ou « nuage ». */
+interface Lane { text: string; done: boolean; tokPerSec: number; ttftMs?: number; failed: boolean; error?: string }
+/** `macSide` n'arrive qu'avec la révélation. */
+interface PublicRound { state: string; lanes: Record<Side, Lane>; macSide?: Side }
+const SIDES: Side[] = ['left', 'right'];
+const ZERO: Record<Side, number> = { left: 0, right: 0 };
 interface Leaderboard {
   rounds: number;
   correctVotes: number;
@@ -115,27 +119,21 @@ const fmtRatio = (a: number, b: number) => (a / b).toLocaleString('fr-FR', { max
 export default function Home() {
   const [prompt, setPrompt] = useState('');
   const [roundId, setRoundId] = useState<string | null>(null);
-  const [machine, setMachine] = useState<Machine | null>(null);
-  const [localText, setLocalText] = useState('');
-  const [cloudText, setCloudText] = useState('');
-  const [localTps, setLocalTps] = useState(0);
-  const [cloudTps, setCloudTps] = useState(0);
-  const [localLive, setLocalLive] = useState(false);
-  const [cloudLive, setCloudLive] = useState(false);
+  const [round, setRound] = useState<PublicRound | null>(null);
+  // Vitesse estimée en direct, calculée À L'IDENTIQUE pour les deux pistes :
+  // une piste qui s'anime seule trahirait le Mac.
+  const [liveTps, setLiveTps] = useState<Record<Side, number>>(ZERO);
+  const firstTextAt = useRef<Record<Side, number>>({ ...ZERO });
   const [macOnline, setMacOnline] = useState<boolean | null>(null);
   const [queue, setQueue] = useState<QueueInfo | null>(null);
   const [globalQueue, setGlobalQueue] = useState<{ running: number; waiting: number } | null>(null);
   const [myVote, setMyVote] = useState<{ choice: Side | 'tie'; correct: boolean } | null>(null);
   const [askedPrompt, setAskedPrompt] = useState('');
-  // Côté tiré pour la manche — le navigateur mappe les flux avec, mais
-  // l'interface n'affiche jamais « Mac » ou « Nuage » avant la révélation.
-  const macSideRef = useRef<Side>('left');
   const [board, setBoard] = useState<Leaderboard | null>(null);
   const [stats, setStats] = useState<MacStats | null>(null);
   const [cpuHist, setCpuHist] = useState<number[]>([]);
   const [memHist, setMemHist] = useState<number[]>([]);
   const [error, setError] = useState<string | null>(null);
-  const macStartedRef = useRef(0);
 
   const refresh = useCallback(async () => {
     const [mac, lb, q] = await Promise.all([
@@ -178,25 +176,25 @@ export default function Home() {
       try { setQueue(JSON.parse(e.data)); } catch { /* événement tronqué */ }
     });
     es.addEventListener('round', (e) => {
-      let d;
+      let d: unknown;
       try { d = JSON.parse(e.data); } catch { return; }
-      macSideRef.current = (d.macSide as Side) ?? macSideRef.current;
-      setMachine(d.machine);
-      const state: string = d.machine.state;
-      setCloudText(d.cloudText);
-      setCloudLive(state === 'live' && !d.machine.cloud.done && !d.machine.cloud.error);
-      if (d.machine.cloud.done) setCloudTps(d.machine.cloud.tokPerSec);
-
-      // Le serveur relaie les deux pistes dans le même SSE.
-      if (!macStartedRef.current && d.localText) macStartedRef.current = Date.now();
-      setLocalText(d.localText);
-      setLocalLive(state === 'live' && !d.machine.local.done && !d.machine.local.error);
-      // Estimation live (~) : ne remplace jamais la mesure serveur finale.
-      if (!d.machine.local.done && d.localText && macStartedRef.current) {
-        const secs = (Date.now() - macStartedRef.current) / 1000;
-        setLocalTps(Math.max(1, Math.round(d.localText.length / 4 / Math.max(secs, 0.3))));
+      const d2 = d as PublicRound;
+      const state = d2.state;
+      setRound(d2);
+      const now = Date.now();
+      const est: Record<Side, number> = { ...ZERO };
+      for (const side of SIDES) {
+        const l = d2.lanes[side];
+        if (!firstTextAt.current[side] && l.text) firstTextAt.current[side] = now;
+        // Estimation live (~4 caractères par token) remplacée par la mesure
+        // serveur dès que la piste a fini.
+        est[side] = l.done
+          ? l.tokPerSec
+          : l.text && firstTextAt.current[side]
+            ? Math.max(1, Math.round(l.text.length / 4 / Math.max((now - firstTextAt.current[side]) / 1000, 0.3)))
+            : 0;
       }
-      if (d.machine.local.done) setLocalTps(d.machine.local.tokPerSec);
+      setLiveTps(est);
       if (state !== 'queued') setQueue(null);
       if (['revealed', 'expired', 'failed'].includes(state)) { es.close(); void refresh(); }
     });
@@ -208,16 +206,11 @@ export default function Home() {
     const p = rawPrompt.trim();
     if (!p) return;
     setError(null);
-    setLocalText('');
-    setCloudText('');
-    setMachine(null);
+    setRound(null);
     setRoundId(null);
     setMyVote(null);
-    setLocalTps(0);
-    setCloudTps(0);
-    setLocalLive(false);
-    setCloudLive(false);
-    macStartedRef.current = 0;
+    setLiveTps(ZERO);
+    firstTextAt.current = { ...ZERO };
     setAskedPrompt(p);
     try {
       const res = await fetch('/api/rounds', {
@@ -227,7 +220,6 @@ export default function Home() {
       });
       const data = await res.json().catch(() => ({ error: 'Réponse illisible du serveur.' }));
       if (!res.ok) { setError(data.error ?? 'erreur'); return; }
-      macSideRef.current = data.macSide as Side;
       setQueue({ position: data.queuePosition, running: data.queuePosition > 0 ? 1 : 0, waiting: data.queuePosition });
       setRoundId(data.roundId);
       sessionStorage.setItem('devine_round', data.roundId);
@@ -259,11 +251,11 @@ export default function Home() {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ choice }),
-      }).then((r) => r.json()).catch(() => ({})) as { correct?: boolean };
+      }).then((r) => r.json()).catch(() => ({})) as Partial<PublicRound> & { correct?: boolean };
+      // La réponse du vote porte la révélation (côté du Mac, mesures finales).
+      if (!data.lanes || !data.state) { setError('Vote non pris en compte, réessaie.'); return; }
       setMyVote({ choice, correct: !!data.correct });
-      setMachine((m) => (m ? { ...m, state: 'revealed' } : m));
-      setLocalLive(false);
-      setCloudLive(false);
+      setRound({ state: data.state, lanes: data.lanes, macSide: data.macSide });
       setRoundId(null);
       setPrompt('');
       sessionStorage.removeItem('devine_round');
@@ -273,16 +265,14 @@ export default function Home() {
   );
 
   const reset = useCallback(() => {
-    setMachine(null);
+    setRound(null);
     setRoundId(null);
-    setLocalText('');
-    setCloudText('');
     setMyVote(null);
     setQueue(null);
     sessionStorage.removeItem('devine_round');
   }, []);
 
-  const state = machine?.state;
+  const state = round?.state;
   const phase: Phase =
     state === 'revealed' ? 'reveal'
       : state === 'expired' || state === 'failed' ? 'over'
@@ -290,30 +280,29 @@ export default function Home() {
           : state === 'live' ? 'race'
             : roundId ? 'queue'
               : 'ask';
-  const revealed = phase === 'reveal';
-  const macSide = macSideRef.current;
+  const revealed = phase === 'reveal' && !!round?.macSide;
+  const macSide = round?.macSide;
   const stepIndex = STEPS.findIndex((s) => s.key.includes(phase));
 
-  // Les deux pistes sont mappées sur le tirage. Avant la révélation : mêmes
-  // titres neutres, mêmes couleurs, même rendu — rien ne dit laquelle est le Mac.
-  const lanes = (['left', 'right'] as Side[]).map((pos) => {
-    const isMac = pos === macSide;
+  // Avant la révélation : mêmes titres neutres, mêmes couleurs, même rendu.
+  const lanes = SIDES.map((pos) => {
+    const l = round?.lanes[pos] ?? { text: '', done: false, tokPerSec: 0, failed: false };
     return {
       pos,
-      isMac,
+      isMac: pos === macSide,
       name: pos === 'left' ? 'IA A' : 'IA B',
-      text: isMac ? localText : cloudText,
-      laneErr: isMac ? machine?.local.error : machine?.cloud.error,
-      track: (isMac ? machine?.local : machine?.cloud) ?? { done: false, tokPerSec: 0 },
-      live: isMac ? localLive : cloudLive,
-      tps: isMac ? localTps : cloudTps,
+      lane: l,
+      live: state === 'live' && !l.done && !l.failed,
+      tps: liveTps[pos],
     };
   });
 
-  const macTpsFinal = machine?.local.tokPerSec ?? 0;
-  const cloudTpsFinal = machine?.cloud.tokPerSec ?? 0;
-  const macTtft = machine?.local.ttftMs ?? 0;
-  const cloudTtft = machine?.cloud.ttftMs ?? 0;
+  const macLane = macSide ? round?.lanes[macSide] : undefined;
+  const cloudLane = macSide ? round?.lanes[macSide === 'left' ? 'right' : 'left'] : undefined;
+  const macTpsFinal = macLane?.tokPerSec ?? 0;
+  const cloudTpsFinal = cloudLane?.tokPerSec ?? 0;
+  const macTtft = macLane?.ttftMs ?? 0;
+  const cloudTtft = cloudLane?.ttftMs ?? 0;
   const rate = board && board.rounds > 0 ? Math.round((board.correctVotes / board.rounds) * 100) : null;
 
   return (
@@ -419,7 +408,7 @@ export default function Home() {
         </section>
       )}
 
-      {machine && (phase === 'race' || phase === 'vote' || phase === 'reveal') && (
+      {round && (phase === 'race' || phase === 'vote' || phase === 'reveal') && (
         <>
           <p className="asked center">« {askedPrompt || 'ta question'} »</p>
 
@@ -437,10 +426,10 @@ export default function Home() {
           )}
 
           <section className="race">
-            {lanes.map(({ pos, isMac, name, text, laneErr, track, live, tps }) => (
+            {lanes.map(({ pos, isMac, name, lane, live, tps }) => (
               <div
                 key={pos}
-                className={`lane ${revealed ? (isMac ? 'is-mac' : 'is-cloud') : ''} ${live ? 'streaming' : ''} ${track.done ? 'done' : ''}`}
+                className={`lane ${revealed ? (isMac ? 'is-mac' : 'is-cloud') : ''} ${live ? 'streaming' : ''} ${lane.done ? 'done' : ''}`}
               >
                 <span className="bar" />
                 <div className="lane-head">
@@ -451,15 +440,15 @@ export default function Home() {
                   </span>
                   <span>
                     <span className="tps">{live ? '~' : ''}{tps > 0 ? tps : '—'}<small>{tps > 0 ? ' tok/s' : ''}</small></span>
-                    <span className="ttft">{track.done ? `1ᵉʳ mot en ${track.ttftMs ?? '?'} ms` : 'en train d’écrire…'}</span>
+                    <span className="ttft">{lane.done ? `1ᵉʳ mot en ${lane.ttftMs ?? '?'} ms` : 'en train d’écrire…'}</span>
                   </span>
                 </div>
-                {text
-                  ? <Markdown text={text} />
-                  : laneErr
-                    ? <p className="error">⚠️ Cette IA n’a pas répondu{revealed ? ` (${laneErr})` : ''}</p>
+                {lane.text
+                  ? <Markdown text={lane.text} />
+                  : lane.failed
+                    ? <p className="error">⚠️ Cette IA n’a pas répondu{lane.error ? ` (${lane.error})` : ''}</p>
                     : <span className="dim">Réfléchit…</span>}
-                {live && text && <span className="caret" />}
+                {live && lane.text && <span className="caret" />}
                 {phase === 'vote' && (
                   <button className="pick" onClick={() => vote(pos)}>🖥️ C’est le Mac&nbsp;!</button>
                 )}
@@ -470,6 +459,7 @@ export default function Home() {
           {phase === 'vote' && (
             <p className="center">
               <button className="ghost" onClick={() => vote('tie')}>Aucune idée, révèle-moi</button>
+              {error && <span className="error" style={{ display: 'block', marginTop: '.6rem' }}>{error}</span>}
             </p>
           )}
 
@@ -529,15 +519,14 @@ export default function Home() {
           {rate !== null && (
             <div className="gauge">
               <div className="gauge-head">
-                <span>Ils trouvent le Mac</span>
+                <span>Mac démasqué</span>
                 <b>{rate}&nbsp;%</b>
               </div>
               <div className="gauge-track">
                 <span className="gauge-fill" style={{ width: `${rate}%` }} />
-                <span className="gauge-mark" style={{ left: '50%' }}><small>hasard 50&nbsp;%</small></span>
               </div>
               <p className="dim small">
-                {rate > 60 ? 'Le Mac se trahit souvent.' : rate < 40 ? 'Le Mac se fait passer pour le cloud.' : 'Autant tirer à pile ou face : difficile de les distinguer.'}
+                Part des manches jouées où le visiteur a désigné le bon côté (manches sans vote comprises).
               </p>
             </div>
           )}

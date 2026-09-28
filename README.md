@@ -27,7 +27,10 @@ Navigateur ──SSE──▶ Cloud Run (Next.js 16 / Bun)
   réels, sur la fenêtre de décode (premier → dernier token). Le délai avant le
   premier token inclut le trajet réseau de chaque côté. Affichés tels quels.
 - **Placement tiré au sort** : le Mac est à gauche ou à droite selon la
-  manche ; rien dans l'interface ne le trahit avant le vote.
+  manche. Avant le vote, ni l'interface ni l'API ne le révèlent : le navigateur
+  reçoit les pistes rangées par position (`src/application/usecases/publicRound.ts`),
+  le côté du Mac n'arrive qu'avec la révélation. Les deux vitesses en direct
+  sont estimées de la même façon.
 - **Contingent** : `MAX_ROUNDS_PER_DAY`, limite par IP (`PER_IP_PER_WINDOW`
   sur `WINDOW_MS`), budget Terraform à 10 €/mois avec alerte à 50 %.
 - **Secrets** : la clé oMLX passe par Secret Manager, jamais par le navigateur

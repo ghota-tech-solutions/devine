@@ -1,4 +1,4 @@
-import { normalizePrompt, rollMacSide, QuotaExhaustedError, type Side } from '@domain/entities/round';
+import { normalizePrompt, rollMacSide, QuotaExhaustedError } from '@domain/entities/round';
 import { initialRoundState, transition } from '@domain/states/roundStateMachine';
 import type { Round } from '@domain/entities/round';
 import type { Clock, RateLimiter, RoundRepository, StatsRepository, TextStreamGateway } from '@application/ports/ports';
@@ -26,8 +26,6 @@ export interface StartRoundResult {
   roundId: string;
   /** 0 = démarre tout de suite, n = n-ième en attente dans la file. */
   queuePosition: number;
-  /** Côté tiré pour cette manche — le navigateur mappe sans jamais l'afficher. */
-  macSide: Side;
 }
 
 const SETTLED = ['awaiting_vote', 'revealed', 'expired', 'failed'];
@@ -64,7 +62,7 @@ export function makeStartRoundUseCase(deps: StartRoundDeps) {
     });
 
     const queuePosition = queue.enqueue(id, () => launch(id, prompt));
-    return { roundId: id, queuePosition, macSide };
+    return { roundId: id, queuePosition };
   };
 
   /** Tour venu : démarre les pistes, garde la place jusqu'à ce qu'elles aient fini. */

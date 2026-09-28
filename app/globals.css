@@ -280,9 +280,7 @@ button.pick { display: block; width: 100%; margin-top: 1rem; padding: .8rem 1rem
 .gauge-head b { font: 800 1.5rem var(--mono); color: var(--mac); }
 .gauge-track { position: relative; height: 14px; border-radius: 999px; background: rgba(255, 255, 255, 0.06); }
 .gauge-fill { display: block; height: 100%; border-radius: 999px; background: linear-gradient(90deg, var(--cloud), var(--mac)); }
-.gauge-mark { position: absolute; top: -4px; bottom: -4px; width: 2px; background: var(--ink); opacity: .7; }
-.gauge-mark small { position: absolute; top: 22px; left: 50%; transform: translateX(-50%); white-space: nowrap; font: .68rem var(--mono); color: var(--dim); }
-.gauge .small { margin-top: 1.4rem; }
+.gauge .small { margin-top: .5rem; }
 
 .small { font-size: .8rem; }
 .center { text-align: center; }

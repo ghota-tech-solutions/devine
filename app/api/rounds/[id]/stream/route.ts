@@ -1,5 +1,6 @@
 import { NextRequest } from 'next/server';
 import { buildApp } from '@/main/builder';
+import { toPublicRound } from '@application/usecases/publicRound';
 
 export const runtime = 'nodejs';
 const app = buildApp();
@@ -30,11 +31,9 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
       // Place dans la file, poussée chaque seconde tant que la manche attend.
       let queued = round.machine.state === 'queued';
       const queueTick = setInterval(() => { if (queued) send('queue', app.queueStatus(id)); }, 1000);
-      const payload = (r: typeof round) =>
-        ({ machine: r.machine, cloudText: r.cloudText, localText: r.localText, vote: r.vote, macSide: r.macSide });
       unsub = app.subscribeRound(id, (r) => {
         queued = r.machine.state === 'queued';
-        send('round', payload(r));
+        send('round', toPublicRound(r));
         if (r.machine.state === 'revealed' || r.machine.state === 'expired' || r.machine.state === 'failed') {
           clearInterval(heartbeat);
           clearInterval(queueTick);
@@ -42,7 +41,7 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
           unsub?.();
         }
       });
-      send('round', payload(round));
+      send('round', toPublicRound(round));
       if (queued) send('queue', app.queueStatus(id));
       cleanup = () => { clearInterval(heartbeat); clearInterval(queueTick); unsub?.(); };
     },

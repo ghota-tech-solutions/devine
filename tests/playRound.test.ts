@@ -136,8 +136,9 @@ describe('CastVote et classement', () => {
   test('le vote est corrigé contre le côté tiré du Mac, pas contre la gauche', async () => {
     // GIVEN une manche terminée — on lit le côté qui a été tiré
     const { rounds, app } = makeWorld();
-    const { roundId, macSide } = await app({ prompt: 'Bonjour', ip: '1.2.3.4' });
+    const { roundId } = await app({ prompt: 'Bonjour', ip: '1.2.3.4' });
     await sleep(5); // la manche quitte la file avant qu'on force son état
+    const { macSide } = (await rounds.get(roundId))!;
     await rounds.update(roundId, {
       machine: { state: 'awaiting_vote', local: { done: true, tokPerSec: 90 }, cloud: { done: true, tokPerSec: 150 } },
     });
@@ -151,8 +152,9 @@ describe('CastVote et classement', () => {
   test('désigner le mauvais côté donne un faux vote', async () => {
     // GIVEN une manche terminée
     const { rounds, app } = makeWorld();
-    const { roundId, macSide } = await app({ prompt: 'Bonjour', ip: '1.2.3.4' });
+    const { roundId } = await app({ prompt: 'Bonjour', ip: '1.2.3.4' });
     await sleep(5); // la manche quitte la file avant qu'on force son état
+    const { macSide } = (await rounds.get(roundId))!;
     await rounds.update(roundId, {
       machine: { state: 'awaiting_vote', local: { done: true, tokPerSec: 90 }, cloud: { done: true, tokPerSec: 150 } },
     });
@@ -165,12 +167,12 @@ describe('CastVote et classement', () => {
 
   test('le côté du Mac est tiré des deux côtés sur plusieurs manches', async () => {
     // GIVEN 30 manches lancées
-    const { app } = makeWorld({ maxPerDay: 100 });
+    const { rounds, app } = makeWorld({ maxPerDay: 100 });
     const sides = new Set<string>();
     // WHEN on lance (IP distinctes pour ne pas se faire couper par l'anti-abus)
     for (let i = 0; i < 30; i++) {
-      const { macSide } = await app({ prompt: `manche ${i}`, ip: `7.7.${i}.1` });
-      sides.add(macSide);
+      const { roundId } = await app({ prompt: `manche ${i}`, ip: `7.7.${i}.1` });
+      sides.add((await rounds.get(roundId))!.macSide);
     }
     // THEN les deux côtés sont sortis au moins une fois (probabilité de raté < 10⁻⁹)
     expect(sides.size).toBe(2);
