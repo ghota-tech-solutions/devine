@@ -29,6 +29,14 @@ interface QueueInfo { position: number | null; running: number; waiting: number 
 type Phase = 'ask' | 'queue' | 'race' | 'vote' | 'reveal' | 'over';
 
 const GITHUB_URL = 'https://github.com/ghota-tech-solutions/devine';
+const CONTACT = {
+  name: 'Mickael Villers',
+  company: 'Ghota Tech Solutions',
+  site: 'https://ghotatechsolutions.com',
+  linkedin: 'https://www.linkedin.com/in/mickaelvillers',
+  x: 'https://x.com/MickaelV79228',
+  email: 'contact@ghotatechsolutions.com',
+};
 const MAC_MODEL = 'Qwen 3.8 Flash Next';
 const CLOUD_MODEL = 'Gemini 3.8 Flash';
 const HIST = 90; // ~3 min à 2 s d'intervalle
@@ -545,6 +553,26 @@ export default function Home() {
           </div>
         </section>
       )}
+
+      <section className="contact" aria-label="Contact">
+        <h2>Une IA locale chez toi&nbsp;?</h2>
+        <p>
+          Ce site est une démo : un modèle open source qui tourne sur une seule machine, sans envoyer tes
+          données chez un fournisseur. Pour mettre en place la même chose dans ton entreprise (LLM privé,
+          serveur dédié ou cloud maîtrisé), écris-moi.
+        </p>
+        <p className="who">
+          <b>{CONTACT.name}</b> · ingénieur DevOps &amp; IA à Lyon · {CONTACT.company}
+        </p>
+        <div className="contact-links">
+          <a className="contact-btn primary" href={`mailto:${CONTACT.email}?subject=${encodeURIComponent('IA locale — Local ou Cloud ?')}`}>
+            ✉️ {CONTACT.email}
+          </a>
+          <a className="contact-btn" href={CONTACT.linkedin} target="_blank" rel="noopener noreferrer">LinkedIn</a>
+          <a className="contact-btn" href={CONTACT.x} target="_blank" rel="noopener noreferrer">X · @MickaelV79228</a>
+          <a className="contact-btn" href={CONTACT.site} target="_blank" rel="noopener noreferrer">ghotatechsolutions.com</a>
+        </div>
+      </section>
 
       <footer className="credit">
         Débits mesurés, pas des promesses.{' '}

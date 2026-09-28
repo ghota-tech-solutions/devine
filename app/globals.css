@@ -292,6 +292,24 @@ button.pick { display: block; width: 100%; margin-top: 1rem; padding: .8rem 1rem
 .center { text-align: center; }
 .asked { font-style: italic; color: var(--dim); margin: 1.2rem 0 0; }
 
+/* ---------- contact ---------- */
+.contact {
+  margin-top: 2.5rem; text-align: center; padding: 1.6rem 1.3rem; border-radius: 20px;
+  border: 1px solid rgba(52, 227, 160, 0.3);
+  background: linear-gradient(180deg, rgba(52, 227, 160, 0.06), rgba(90, 168, 255, 0.04));
+}
+.contact h2 { margin: 0 0 .6rem; font-size: 1.4rem; }
+.contact p { color: var(--dim); max-width: 640px; margin: 0 auto .8rem; }
+.contact .who { color: var(--ink); font-size: .9rem; }
+.contact-links { display: flex; flex-wrap: wrap; gap: .5rem; justify-content: center; margin-top: 1rem; }
+.contact-btn {
+  display: inline-flex; align-items: center; gap: .35rem; padding: .55rem 1.1rem; border-radius: 999px;
+  border: 1px solid var(--line); background: var(--panel-strong); color: var(--ink);
+  font: 600 .88rem var(--sans); text-decoration: none; transition: border-color .2s, transform .15s;
+}
+.contact-btn:hover { border-color: rgba(255, 255, 255, 0.35); transform: translateY(-1px); }
+.contact-btn.primary { background: linear-gradient(90deg, var(--mac), #6fe9be); color: #04120c; border: 0; }
+
 footer.credit { text-align: center; color: var(--dim); font-size: .78rem; margin-top: 1.6rem; }
 footer.credit a { color: var(--ink); }
 

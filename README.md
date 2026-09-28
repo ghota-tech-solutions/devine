@@ -77,6 +77,16 @@ fakes en mémoire plutôt que mocks de bibliothèque. Le cycle de vie d'une manc
 est une machine à états pure (`src/domain/states/roundStateMachine.ts`),
 testée table par table.
 
+## La même chose chez vous ?
+
+Faire tourner un LLM open source sur votre propre machine ou un cloud maîtrisé,
+sans envoyer vos données chez un fournisseur : c'est mon métier.
+
+**Mickael Villers** — ingénieur DevOps & IA à Lyon, [Ghota Tech Solutions](https://ghotatechsolutions.com)
+· [LinkedIn](https://www.linkedin.com/in/mickaelvillers)
+· [X @MickaelV79228](https://x.com/MickaelV79228)
+· contact@ghotatechsolutions.com
+
 ## Licence
 
 [MIT](LICENSE) © 2026 Ghota Tech Solutions
